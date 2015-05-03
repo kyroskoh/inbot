@@ -5,8 +5,13 @@ __author__ = 'kotov.a'
 import options
 import logging
 import coloredlogs
+import sys
 
 logger = logging.getLogger('inbot')
+level = logging.DEBUG
+handler = logging.StreamHandler(stream=sys.stdout)
+handler.setLevel(level)
+logger.addHandler(handler)
 coloredlogs.install(level=logging.DEBUG)
 
 
