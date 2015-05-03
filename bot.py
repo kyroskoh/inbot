@@ -6,8 +6,8 @@ import options
 import logging
 import coloredlogs
 
-logging.basicConfig(level=logging.DEBUG)
-coloredlogs.install()
+logger = logging.getLogger('inbot')
+coloredlogs.install(level=logging.DEBUG)
 
 
 def get_followed_by(api):
@@ -27,80 +27,92 @@ def get_follow(api):
 
 
 def like_media(media_id, api):
-    logging.info('Like %s', media_id)
+    logger.info('Like %s', media_id)
     api.like_media(media_id)
+    sleep_custom()
 
 
 def follow_user(user_id, api):
-    logging.info('Follow %s', user_id)
+    logger.info('Follow %s', user_id)
     api.follow_user(user_id=user_id)
+    sleep_custom()
 
 
 def sleep_custom():
-    duration = 60
-    logging.debug('Sleep %d', duration)
+    duration = 40
+    logger.debug('Sleep %d', duration)
     sleep(duration)
 
 
 from instagram.client import InstagramAPI
 
 api = InstagramAPI(access_token=options.ACCESS_TOKEN, client_secret=options.CLIENT_SECRET, client_ips="1.2.3.4")
-
+logger.debug('Get account information...')
 followed_by = get_followed_by(api)
 sleep(10)
 follow = get_follow(api)
 sleep(5)
 user_id = api.user().id
-logging.info('Start. Followed by %d, follow %d. User id: %s', len(followed_by), len(follow), user_id)
-sleep(10)
+logger.info('Start. Followed by %d, follow %d. User id: %s', len(followed_by), len(follow), user_id)
+sleep(5)
 
 likes_count = 0
 follows_count = 0
 
 ignore_list = []
 
-for tag in options.TAGS:
-    logging.debug('Limits %s', api.x_ratelimit_remaining)
-    media = list(api.tag_recent_media(tag_name=tag, count=10))
+last_action_is_like = False
 
-    for m in media[0]:
-        media_user_id = m.user.id
-        logging.debug('Skip media %s user %s previously followed', m.id, media_user_id)
+try:
+    for tag in options.TAGS:
+        logger.debug('Limits %s', api.x_ratelimit_remaining)
+        media = list(api.tag_recent_media(tag_name=tag, count=20))
 
-        if any(x for x in m.likes if x.id == user_id):
-            logging.debug('Skip media %s, previously liked', m.id)
-            continue
+        for m in media[0]:
+            media_user_id = m.user.id
+            logger.debug('Skip media %s user %s previously followed', m.id, media_user_id)
 
-        if any(x for x in follow if x.id == media_user_id):
-            logging.debug('Skip media %s, user %s previously followed', m.id, media_user_id)
-            continue
+            if any(x for x in m.likes if x.id == user_id):
+                logger.debug('Skip media %s, previously liked', m.id)
+                continue
 
-        if any(x for x in followed_by if x.id == media_user_id):
-            logging.debug('Skip media %s, user %s is follower', m.id, media_user_id)
-            continue
+            if any(x for x in follow if x.id == media_user_id):
+                logger.debug('Skip media %s, user %s previously followed', m.id, media_user_id)
+                continue
 
-        if media_user_id in ignore_list:
-            logging.debug('Skip media %s, user %s handled in this session', m.id, media_user_id)
-            continue
+            if any(x for x in followed_by if x.id == media_user_id):
+                logger.debug('Skip media %s, user %s is follower', m.id, media_user_id)
+                continue
 
-        if likes_count <= 30:
-            sleep_custom()
-            like_media(m.id, api)
-            likes_count += 1
-            ignore_list.append(media_user_id)
-            continue
-        else:
-            logging.warning('Likes limit exceed')
+            if media_user_id in ignore_list:
+                logger.debug('Skip media %s, user %s handled in this session', m.id, media_user_id)
+                continue
 
-        if follows_count <= 20:
-            sleep_custom()
-            follow_user(media_user_id, api)
-            follows_count += 1
-            ignore_list.append(media_user_id)
-            continue
-        else:
-            logging.warning('Follows limit exceed')
+            if not last_action_is_like:
+                if likes_count < 30:
+                    like_media(m.id, api)
+                    likes_count += 1
+                    ignore_list.append(media_user_id)
+                    last_action_is_like = True
+                    continue
+                else:
+                    logger.warning('Likes limit exceed')
+
+            if last_action_is_like:
+                if follows_count < 20:
+                    follow_user(media_user_id, api)
+                    follows_count += 1
+                    ignore_list.append(media_user_id)
+                    last_action_is_like = False
+                    continue
+                else:
+                    logger.warning('Follows limit exceed')
 
         if likes_count >= 30 and follows_count >= 20:
-            logging.info('Finish, likes %d, follows %d', likes_count, follows_count)
+            logger.info('Finish, likes %d, follows %d', likes_count, follows_count)
             exit(0)
+
+except Exception as e:
+    logger.exception(e)
+finally:
+    logger.info('Total, likes: %d, follows: %d', likes_count, follows_count)
