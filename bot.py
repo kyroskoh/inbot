@@ -32,10 +32,12 @@ def get_follow(api):
 
 
 def like_media(media_id, api):
-    logger.info('Like %s', media_id)
-    api.like_media(media_id)
-    sleep_custom()
-
+    try:
+        logger.info('Like %s', media_id)
+        api.like_media(media_id)
+        sleep_custom()
+    except Exception as e:
+        logger.exception(e)
 
 def follow_user(user_id, api):
     logger.info('Follow %s', user_id)
