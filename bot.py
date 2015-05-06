@@ -35,21 +35,33 @@ def like_media(media_id, api):
     try:
         logger.info('Like %s', media_id)
         api.like_media(media_id)
-        sleep_custom()
+        sleep_custom(70)
     except Exception as e:
         logger.exception(e)
 
 def follow_user(user_id, api):
     logger.info('Follow %s', user_id)
     api.follow_user(user_id=user_id)
-    sleep_custom()
+    sleep_custom(57)
 
 
-def sleep_custom():
-    duration = 40
+def sleep_custom(duration):
     logger.debug('Sleep %d', duration)
     sleep(duration)
 
+
+def get_not_followed_back(follows_list, followed_by_list):
+    not_followed_back = []
+    for follow in follows_list:
+        if not any(f for f in followed_by_list if f.id == follow.id):
+            not_followed_back.append(follow)
+    return not_followed_back
+
+
+def unfollow(api, user_id):
+    logger.debug('Unfollow user %s', user_id)
+    api.unfollow_user(user_id=user_id)
+    sleep_custom(57)
 
 from instagram.client import InstagramAPI
 
@@ -71,6 +83,12 @@ ignore_list = []
 last_action_is_like = False
 
 try:
+    not_followed_back = get_not_followed_back(follow, followed_by)
+    if len(not_followed_back) > options.MAX_NO_FOLLOWED_BACK:
+        logger.warning('Not followed back count exceed limit %d', len(not_followed_back))
+        for f in not_followed_back:
+            unfollow(api, f.id)
+
     for tag in options.TAGS:
         logger.debug('Limits %s', api.x_ratelimit_remaining)
         media = list(api.tag_recent_media(tag_name=tag, count=20))
