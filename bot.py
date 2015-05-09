@@ -37,7 +37,7 @@ def like_media(media_id, api):
     try:
         logger.info('Like %s', media_id)
         api.like_media(media_id)
-        sleep_custom(70)
+        sleep_custom(61)
     except Exception as e:
         logger.exception(e)
 
@@ -45,7 +45,7 @@ def like_media(media_id, api):
 def follow_user(user_id, api):
     logger.info('Follow %s', user_id)
     api.follow_user(user_id=user_id)
-    sleep_custom(57)
+    sleep_custom(121)
 
 
 def sleep_custom(duration):
@@ -64,7 +64,8 @@ def get_not_followed_back(follows_list, followed_by_list):
 def unfollow_user(api, user_id):
     logger.debug('Unfollow user %s', user_id)
     api.unfollow_user(user_id=user_id)
-    sleep_custom(57)
+    sleep_custom(121)
+    save_user_id_to_ignore_list(user_id)
 
 
 def read_ignore_list():
@@ -100,8 +101,6 @@ likes_count = 0
 follows_count = 0
 
 ignore_list = read_ignore_list()
-
-last_action_is_like = False
 
 try:
     not_followed_back = get_not_followed_back(follow, followed_by)
@@ -140,29 +139,23 @@ try:
                 logger.debug('Skip media %s, user %s handled in this session', m.id, media_user_id)
                 continue
 
-            if not last_action_is_like:
+            if follows_count < 20:
+                follow_user(media_user_id, api)
+                follows_count += 1
+                save_user_id_to_ignore_list(media_user_id)
                 if likes_count < 30:
                     like_media(m.id, api)
                     likes_count += 1
-                    save_user_id_to_ignore_list(media_user_id)
-                    last_action_is_like = True
-                    continue
                 else:
                     logger.warning('Likes limit exceed')
-
-            if last_action_is_like:
-                if follows_count < 20:
-                    follow_user(media_user_id, api)
-                    follows_count += 1
-                    save_user_id_to_ignore_list(media_user_id)
-                    last_action_is_like = False
-                    continue
-                else:
-                    logger.warning('Follows limit exceed')
+                continue
+            else:
+                logger.warning('Follows limit exceed')
 
         if likes_count >= 30 and follows_count >= 20:
             logger.info('Finish, likes %d, follows %d', likes_count, follows_count)
             exit(0)
+
 except KeyboardInterrupt:
     logger.warning('Canceled')
     logger.info('Finish, likes %d, follows %d', likes_count, follows_count)
