@@ -14,6 +14,8 @@ handler.setLevel(level)
 logger.addHandler(handler)
 coloredlogs.install(level=logging.DEBUG)
 
+IGNORE_LIST_FILENAME = 'ignore.txt'
+
 
 def get_followed_by(api):
     followed_by_list = []
@@ -39,6 +41,7 @@ def like_media(media_id, api):
     except Exception as e:
         logger.exception(e)
 
+
 def follow_user(user_id, api):
     logger.info('Follow %s', user_id)
     api.follow_user(user_id=user_id)
@@ -58,10 +61,28 @@ def get_not_followed_back(follows_list, followed_by_list):
     return not_followed_back
 
 
-def unfollow(api, user_id):
+def unfollow_user(api, user_id):
     logger.debug('Unfollow user %s', user_id)
     api.unfollow_user(user_id=user_id)
     sleep_custom(57)
+
+
+def read_ignore_list():
+    import os.path
+
+    if not os.path.isfile(IGNORE_LIST_FILENAME):
+        return []
+    with open(IGNORE_LIST_FILENAME) as f:
+        lines = f.readlines()
+        lines = [line.strip() for line in lines]
+        return lines
+
+
+def save_user_id_to_ignore_list(user_id):
+    logger.debug('Save %s to ignore list', user_id)
+    ignore_list.append(user_id)
+    with open(IGNORE_LIST_FILENAME, "a") as f:
+        f.write(user_id + '\r\n')
 
 from instagram.client import InstagramAPI
 
@@ -78,7 +99,7 @@ sleep(5)
 likes_count = 0
 follows_count = 0
 
-ignore_list = []
+ignore_list = read_ignore_list()
 
 last_action_is_like = False
 
@@ -87,7 +108,7 @@ try:
     if len(not_followed_back) > options.MAX_NO_FOLLOWED_BACK:
         logger.warning('Not followed back count exceed limit %d', len(not_followed_back))
         for f in not_followed_back:
-            unfollow(api, f.id)
+            unfollow_user(api, f.id)
 
     for tag in options.TAGS:
         logger.debug('Limits %s', api.x_ratelimit_remaining)
@@ -117,7 +138,7 @@ try:
                 if likes_count < 30:
                     like_media(m.id, api)
                     likes_count += 1
-                    ignore_list.append(media_user_id)
+                    save_user_id_to_ignore_list(media_user_id)
                     last_action_is_like = True
                     continue
                 else:
@@ -127,7 +148,7 @@ try:
                 if follows_count < 20:
                     follow_user(media_user_id, api)
                     follows_count += 1
-                    ignore_list.append(media_user_id)
+                    save_user_id_to_ignore_list(media_user_id)
                     last_action_is_like = False
                     continue
                 else:
@@ -136,7 +157,9 @@ try:
         if likes_count >= 30 and follows_count >= 20:
             logger.info('Finish, likes %d, follows %d', likes_count, follows_count)
             exit(0)
-
+except KeyboardInterrupt:
+    logger.warning('Canceled')
+    logger.info('Finish, likes %d, follows %d', likes_count, follows_count)
 except Exception as e:
     logger.exception(e)
 finally:
