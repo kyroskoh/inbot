@@ -105,9 +105,15 @@ last_action_is_like = False
 
 try:
     not_followed_back = get_not_followed_back(follow, followed_by)
+    followed_back = list(set(item.id for item in followed_by) & set(item.id for item in follow))
+    if len(followed_back) > options.MAX_FOLLOWED_BACK:
+        logger.warning('Followed back count exceed limit %d', len(followed_back))
+        for f in followed_back[:options.CLEAN_LIMIT]:
+            unfollow_user(api, f)
+
     if len(not_followed_back) > options.MAX_NO_FOLLOWED_BACK:
         logger.warning('Not followed back count exceed limit %d', len(not_followed_back))
-        for f in not_followed_back:
+        for f in not_followed_back[:options.CLEAN_LIMIT]:
             unfollow_user(api, f.id)
 
     for tag in options.TAGS:
