@@ -45,7 +45,7 @@ def like_media(media_id, api):
 def follow_user(user_id, api):
     logger.info('Follow %s', user_id)
     api.follow_user(user_id=user_id)
-    sleep_custom(121)
+    sleep_custom(120)
 
 
 def sleep_custom(duration):
@@ -64,7 +64,7 @@ def get_not_followed_back(follows_list, followed_by_list):
 def unfollow_user(api, user_id):
     logger.debug('Unfollow user %s', user_id)
     api.unfollow_user(user_id=user_id)
-    sleep_custom(121)
+    sleep_custom(60)
     save_user_id_to_ignore_list(user_id)
 
 
@@ -151,6 +151,7 @@ try:
                 continue
             else:
                 logger.warning('Follows limit exceed')
+                break
 
         if likes_count >= 30 and follows_count >= 20:
             logger.info('Finish, likes %d, follows %d', likes_count, follows_count)
