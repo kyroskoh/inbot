@@ -1,4 +1,5 @@
 from time import sleep
+import datetime
 
 __author__ = 'kotov.a'
 
@@ -105,15 +106,11 @@ ignore_list = read_ignore_list()
 try:
     not_followed_back = get_not_followed_back(follow, followed_by)
     followed_back = list(set(item.id for item in followed_by) & set(item.id for item in follow))
-    if len(followed_back) > options.MAX_FOLLOWED_BACK:
-        logger.warning('Followed back count exceed limit %d', len(followed_back))
-        for f in followed_back[:options.CLEAN_LIMIT]:
-            unfollow_user(api, f)
 
-    if len(not_followed_back) > options.MAX_NO_FOLLOWED_BACK:
-        logger.warning('Not followed back count exceed limit %d', len(not_followed_back))
-        for f in not_followed_back[:options.CLEAN_LIMIT]:
-            unfollow_user(api, f.id)
+    if 1 < datetime.datetime.now() < 9 and len(follow) > options.MAX_FOLLOW:
+        for f in reversed(follow)[:30]:
+            unfollow_user(api, f)
+        exit()
 
     for tag in options.TAGS:
         logger.debug('Limits %s', api.x_ratelimit_remaining)
