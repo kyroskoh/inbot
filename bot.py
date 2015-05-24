@@ -109,7 +109,7 @@ try:
 
     if 1 < datetime.datetime.now().hour < 9 and len(follow) > options.MAX_FOLLOW:
         for f in list(reversed(follow))[:30]:
-            unfollow_user(api, f)
+            unfollow_user(api, f.id)
         exit()
 
     for tag in options.TAGS:
