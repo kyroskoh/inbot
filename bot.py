@@ -107,7 +107,7 @@ try:
     not_followed_back = get_not_followed_back(follow, followed_by)
     followed_back = list(set(item.id for item in followed_by) & set(item.id for item in follow))
 
-    if 1 < datetime.datetime.now() < 9 and len(follow) > options.MAX_FOLLOW:
+    if 1 < datetime.datetime.now().hour < 9 and len(follow) > options.MAX_FOLLOW:
         for f in reversed(follow)[:30]:
             unfollow_user(api, f)
         exit()
