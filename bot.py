@@ -34,11 +34,11 @@ def get_follow(api):
     return follows_list
 
 
-def like_media(media_id, api):
+def like_media(media_id, api, sleep=59):
     try:
         logger.info('Like %s', media_id)
         api.like_media(media_id)
-        sleep_custom(61)
+        sleep_custom(sleep)
     except Exception as e:
         logger.exception(e)
 
@@ -86,31 +86,55 @@ def save_user_id_to_ignore_list(user_id):
     with open(IGNORE_LIST_FILENAME, "a") as f:
         f.write(user_id + '\r\n')
 
-from instagram.client import InstagramAPI
 
-api = InstagramAPI(access_token=options.ACCESS_TOKEN, client_secret=options.CLIENT_SECRET, client_ips="1.2.3.4")
-logger.debug('Get account information...')
-followed_by = get_followed_by(api)
-sleep(10)
-follow = get_follow(api)
-sleep(5)
-user_id = api.user().id
-logger.info('Start. Followed by %d, follow %d. User id: %s', len(followed_by), len(follow), user_id)
-sleep(5)
+def is_new_user(user_id, media, media_user_id):
+    if any(x for x in media.likes if x.id == user_id):
+        logger.debug('Skip media %s, previously liked', media.id)
+        return False
 
-likes_count = 0
-follows_count = 0
+    if any(x for x in follow if x.id == media_user_id):
+        logger.debug('Skip media %s, user %s previously followed', media.id, media_user_id)
+        return False
 
-ignore_list = read_ignore_list()
+    if any(x for x in followed_by if x.id == media_user_id):
+        logger.debug('Skip media %s, user %s is follower', media.id, media_user_id)
+        return False
 
-try:
-    not_followed_back = get_not_followed_back(follow, followed_by)
-    followed_back = list(set(item.id for item in followed_by) & set(item.id for item in follow))
+    if media_user_id in ignore_list:
+        logger.debug('Skip media %s, user %s handled in this session', media.id, media_user_id)
+        return False
+    return True
 
-    if 1 < datetime.datetime.now().hour < 9 and len(follow) > options.MAX_FOLLOW:
-        for f in reversed(follow)[:30]:
-            unfollow_user(api, f)
-        exit()
+
+def night_mode(api, user_id):
+    likes_count = 0
+    unfollow_count = 0
+    for tag in options.TAGS:
+        logger.debug('Limits %s', api.x_ratelimit_remaining)
+        media = list(api.tag_recent_media(tag_name=tag, count=20))
+        for m in media[0]:
+            media_user_id = m.user.id
+
+            if not is_new_user(media_user_id, m, user_id):
+                continue
+
+            if likes_count <= 30:
+                like_media(m.id, api, 0)
+                likes_count += 1
+            else:
+                logger.warning('Likes limit exceed')
+                continue
+
+            if unfollow_count <= 20:
+                for f in list(reversed(follow))[:1]:
+                    unfollow_user(api, f.id)
+                    follow.remove(f)
+                    unfollow_count += 1
+
+
+def daily_mode(api, user_id):
+    follows_count = 0
+    likes_count = 0
 
     for tag in options.TAGS:
         logger.debug('Limits %s', api.x_ratelimit_remaining)
@@ -118,22 +142,8 @@ try:
 
         for m in media[0]:
             media_user_id = m.user.id
-            logger.debug('Skip media %s user %s previously followed', m.id, media_user_id)
 
-            if any(x for x in m.likes if x.id == user_id):
-                logger.debug('Skip media %s, previously liked', m.id)
-                continue
-
-            if any(x for x in follow if x.id == media_user_id):
-                logger.debug('Skip media %s, user %s previously followed', m.id, media_user_id)
-                continue
-
-            if any(x for x in followed_by if x.id == media_user_id):
-                logger.debug('Skip media %s, user %s is follower', m.id, media_user_id)
-                continue
-
-            if media_user_id in ignore_list:
-                logger.debug('Skip media %s, user %s handled in this session', m.id, media_user_id)
+            if not is_new_user(media_user_id, m, user_id):
                 continue
 
             if follows_count < 20:
@@ -154,10 +164,34 @@ try:
             logger.info('Finish, likes %d, follows %d', likes_count, follows_count)
             exit(0)
 
+from instagram.client import InstagramAPI
+
+api = InstagramAPI(access_token=options.ACCESS_TOKEN, client_secret=options.CLIENT_SECRET, client_ips="1.2.3.4")
+logger.debug('Get account information...')
+followed_by = get_followed_by(api)
+sleep(10)
+follow = get_follow(api)
+sleep(5)
+user_id = api.user().id
+logger.info('Start. Followed by %d, follow %d. User id: %s', len(followed_by), len(follow), user_id)
+sleep(5)
+
+ignore_list = read_ignore_list()
+
+try:
+    not_followed_back = get_not_followed_back(follow, followed_by)
+    followed_back = list(set(item.id for item in followed_by) & set(item.id for item in follow))
+
+    only_like = 0 <= datetime.datetime.now().hour <= 9 and len(follow) > options.MAX_FOLLOW
+
+    if only_like:
+        logger.info('Night mode')
+        night_mode(api, user_id)
+    else:
+        logger.info('Daily mode')
+        daily_mode(api, user_id)
+
 except KeyboardInterrupt:
     logger.warning('Canceled')
-    logger.info('Finish, likes %d, follows %d', likes_count, follows_count)
 except Exception as e:
     logger.exception(e)
-finally:
-    logger.info('Total, likes: %d, follows: %d', likes_count, follows_count)
