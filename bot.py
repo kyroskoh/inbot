@@ -121,7 +121,7 @@ def night_mode(api, user_id):
                     follow.remove(f)
                     unfollow_count += 1
 
-            if not is_new_user(media_user_id, m, user_id):
+            if not is_new_user(user_id, m, media_user_id):
                 continue
 
             if likes_count <= 30:
@@ -143,7 +143,7 @@ def daily_mode(api, user_id):
         for m in media[0]:
             media_user_id = m.user.id
 
-            if not is_new_user(m, user_id, media_user_id):
+            if not is_new_user(user_id, m, media_user_id):
                 continue
 
             if follows_count < 20:
