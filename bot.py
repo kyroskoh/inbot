@@ -111,25 +111,25 @@ def night_mode(api, user_id):
     unfollow_count = 0
     for tag in options.TAGS:
         logger.debug('Limits %s', api.x_ratelimit_remaining)
-        media = list(api.tag_recent_media(tag_name=tag, count=20))
+        media = list(api.tag_recent_media(tag_name=tag, count=50))
         for m in media[0]:
             media_user_id = m.user.id
-
-            if not is_new_user(media_user_id, m, user_id):
-                continue
-
-            if likes_count <= 30:
-                like_media(m.id, api, 0)
-                likes_count += 1
-            else:
-                logger.warning('Likes limit exceed')
-                continue
 
             if unfollow_count <= 20:
                 for f in list(reversed(follow))[:1]:
                     unfollow_user(api, f.id)
                     follow.remove(f)
                     unfollow_count += 1
+
+            if not is_new_user(media_user_id, m, user_id):
+                continue
+
+            if likes_count <= 30:
+                like_media(m.id, api, 10)
+                likes_count += 1
+            else:
+                logger.warning('Likes limit exceed')
+                continue
 
 
 def daily_mode(api, user_id):
